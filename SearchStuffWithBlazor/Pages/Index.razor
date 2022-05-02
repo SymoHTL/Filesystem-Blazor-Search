@@ -1,0 +1,250 @@
+﻿@page "/"
+@using Domain
+@using Model.Entities
+@using System.Diagnostics
+@using System.Timers
+@using System.Collections.Concurrent
+
+<PageTitle>Search</PageTitle>
+
+<div style="margin: 2.5vh 10vh 1vh;">
+    <div class="position-relative p-3">
+        <form @onsubmit="async () => await StartSearch()">
+            <MudButton FullWidth="true" Variant="Variant.Outlined" Color="Color.Primary" OnClick="() => _showLastSearches = true">Saves</MudButton>
+            <MudTextField T="string" InputMode="InputMode.text" InputType="InputType.Text"
+                          Placeholder="Path (e.g. 'D:/School/Homework')" Label="Path"
+                          @bind-Value="SearchItem.Path" Required="true" Clearable="true"/>
+
+            <MudTextField T="string" InputMode="InputMode.text" InputType="InputType.Text"
+                          Placeholder="File-Name (e.g. 'Homework')" Label="File-Name"
+                          @bind-Value="SearchItem.FileName" Clearable="true"/>
+            <MudTextField T="string" InputMode="InputMode.text" InputType="InputType.Text"
+                          Placeholder="File-Extension (e.g. '.txt')" Label="File-Extension"
+                          @bind-Value="SearchItem.FileExtension" Clearable="true"/>
+            <MudCheckBox @bind-Checked="SearchItem.IgnoreDollarFiles" Label="Ignore files starting with: '$'" Color="Color.Primary"/>
+            <MudCheckBox @bind-Checked="SearchItem.IgnoreHidden" Label="Ignore hidden files" Color="Color.Secondary"/>
+            <MudCheckBox @bind-Checked="SearchItem.IgnoreSystemFiles" Label="Ignore system files" Color="Color.Primary"/>
+            <MudCheckBox @bind-Checked="SearchItem.IgnoreTemporary" Label="Ignore temporary files/folders" Color="Color.Secondary"/>
+            <MudCheckBox @bind-Checked="SearchItem.IgnoreWithDotStarting" Label="Ignore files starting with: '.'" Color="Color.Primary"/>
+            <br/>
+            <div>
+                <MudChipSet AllClosable="true" OnClose="RemoveExtension">
+                    @foreach (var toSkip in SearchItem.ExtensionsToSkip) {
+                        <MudChip Text="@toSkip"></MudChip>
+                    }
+                </MudChipSet>
+            </div>
+            <form @onsubmit="AddExtension">
+                <MudTextField T="string" InputMode="InputMode.text" InputType="InputType.Text"
+                              Placeholder="Extension to ignore (e.g. '.png')" Label="Ignore-Extension"
+                              Immediate="true" Required="true" Clearable="true" @bind-Value="_skipExtension">
+                </MudTextField>
+                <MudButton Color="Color.Primary" Variant="Variant.Outlined" Class="my-3" ButtonType="ButtonType.Submit">Add</MudButton>
+            </form>
+
+            <MudButton Color="Color.Primary" Variant="Variant.Outlined" Class="my-3" ButtonType="ButtonType.Submit">Search</MudButton>
+            <MudButton Color="Color.Error" Variant="Variant.Outlined" Class="my-3" ButtonType="ButtonType.Reset">Clear</MudButton>
+        </form>
+        <MudOverlay @bind-Visible="_isVisible" Absolute="true" DarkBackground="true">
+            <MudProgressCircular Indeterminate="true" Size="Size.Large" Color="Color.Info"></MudProgressCircular>
+        </MudOverlay>
+    </div>
+    <MudTabs Centered="true" Rounded="true">
+        <MudTabPanel Text="File-Paths">
+            <MudPaper Class="p-3 output">
+                @if (Files.Count >= 0) {
+                    <MudTable Items="@Files" FixedHeader="true" Virtualize="true" Hover="true" Loading="@_isVisible" Dense="true" LoadingProgressColor="Color.Info">
+                        <ColGroup>
+                                <col style="width: 10%;" />
+                                <col style="width: 10%;" />
+                                <col style="width: 80%;" />
+                            </ColGroup>
+                        <HeaderContent>
+                            <MudTh>
+                                <MudTableSortLabel InitialDirection="SortDirection.Ascending"
+                                                   SortBy="new Func<(long, List<FileInfo>), object>(f => f.Item1)">Time</MudTableSortLabel></MudTh>
+                            <MudTh>
+                                <MudTableSortLabel SortDirection="SortDirection.Descending"
+                                                   SortBy="new Func<(long, List<FileInfo>), object>(f => f.Item2.Count)">Size</MudTableSortLabel></MudTh>
+                            <MudTh>Path</MudTh>
+                        </HeaderContent>
+                        <RowTemplate>
+                            <MudTd DataLabel="Time">@context.Item1 ms</MudTd>
+                            <MudTd DataLabel="Size">@context.Item2.Length.ConvertToReadable()</MudTd>
+                            <MudTd DataLabel="Path">@context.Item2.FullName</MudTd>
+                        </RowTemplate>
+                    </MudTable>
+                }
+                @*<Virtualize Items="@(Files)" Context="file">
+                    <MudText Typo="Typo.body1">@($"{file.Item1}ms - {file.Item2.Length.ConvertToReadable()} - {file.Item2.FullName}")</MudText>
+                </Virtualize>*@
+            </MudPaper>
+        </MudTabPanel>
+        <MudTabPanel Text="Stats">
+            <MudPaper Class="p-3 output">
+                <MudText Typo="Typo.body1">Time: @Stats.Time ms</MudText>
+                @if (!_isVisible) {
+                    <MudText Typo="Typo.body1">Found Files Size: @Files.Select(f => f.Item2.Length).Sum().ConvertToReadable()</MudText>
+                }
+                <MudText Typo="Typo.body1">Found Files: @Stats.FoundFiles</MudText>
+                <MudText Typo="Typo.body1">Checked Files: @Stats.CheckedFiles</MudText>
+                <MudText Typo="Typo.body1">Filtered Files: @(Stats.CheckedFiles - Stats.FoundFiles)</MudText>
+                <MudText Typo="Typo.body1">Checked Directories: @Stats.CheckedDirectories</MudText>
+                <MudText Typo="Typo.body1">Checked Sub-Directories: @Stats.CheckedSubDirectories</MudText>
+                <MudText Typo="Typo.body1">No Access: @Stats.NoAccessErrors</MudText>
+            </MudPaper>
+        </MudTabPanel>
+        <MudTabPanel Text="Errors">
+            <MudPaper Class="p-3 output">
+                <MudExpansionPanels>
+                    <Virtualize Items="@(Errors)" Context="error">
+                        <MudText Typo="Typo.body1">@error.Message</MudText>
+                    </Virtualize>
+                </MudExpansionPanels>
+            </MudPaper>
+        </MudTabPanel>
+    </MudTabs>
+</div>
+
+
+<MudDrawer Open="_showLastSearches" Anchor="Anchor.Right" Variant="DrawerVariant.Temporary" Width="500px" OpenChanged="HandleChanged">
+    <MudDrawerHeader Class="align-center">
+        <MudText Typo="Typo.body1">
+            <b>Last Searches</b>
+        </MudText>
+        <MudSpacer/>
+        <MudIconButton Color="Color.Default"
+                       Icon="@Icons.Material.Filled.Close"
+                       OnClick="() => _showLastSearches = false"
+                       Size="Size.Small"/>
+    </MudDrawerHeader>
+    <MudDrawerContainer>
+        @foreach (var save in Saves.OrderByDescending(n => n.SaveName)) {
+            <MudPaper Class="p-3 m-5">
+                <MudText Typo="Typo.body1">Save-Name: @save.SaveName</MudText>
+                <MudText Typo="Typo.body1">Path: @save.Path</MudText>
+                <MudText Typo="Typo.body1">File-Name: @save.FileName</MudText>
+                <MudText Typo="Typo.body1">File-Extension: @save.FileExtension</MudText>
+                <MudText Typo="Typo.body1">Settings:</MudText>
+                <MudCheckBox Disabled="true" Checked="save.IgnoreDollarFiles" Label="Ignore files starting with: '$'" Color="Color.Primary"/>
+                <MudCheckBox Disabled="true" Checked="save.IgnoreHidden" Label="Ignore hidden files" Color="Color.Secondary"/>
+                <MudCheckBox Disabled="true" Checked="save.IgnoreSystemFiles" Label="Ignore system files" Color="Color.Primary"/>
+                <MudCheckBox Disabled="true" Checked="save.IgnoreTemporary" Label="Ignore temporary files/folders" Color="Color.Secondary"/>
+                <MudCheckBox Disabled="true" Checked="save.IgnoreWithDotStarting" Label="Ignore files starting with: '.'" Color="Color.Primary"/>
+                <br/>
+                <MudButton Color="Color.Success" Variant="Variant.Outlined" OnClick="() => SearchItem = save">Load</MudButton>
+                <MudButton Color="Color.Error" Variant="Variant.Outlined" OnClick="() => save.Delete()">Delete</MudButton>
+            </MudPaper>
+        }
+
+    </MudDrawerContainer>
+</MudDrawer>
+
+
+<style>
+    .output{
+        max-height: 60vh;
+        overflow-y: auto;
+    }
+</style>
+
+@code {
+
+    private bool _isVisible;
+    private bool _showLastSearches;
+
+    private string _skipExtension = string.Empty;
+
+    private SearchItem SearchItem { get; set; } = new();
+
+    private List<SearchItem> Saves { get; set; } = new();
+
+    private ConcurrentBag<(long, FileInfo)> Files { get; set; } = new();
+    private Stats Stats { get; set; } = new();
+    private List<Exception> Errors { get; set; } = new();
+
+    private Stopwatch Stopwatch { get; set; } = new();
+    private Timer Timer { get; } = new() {Interval = 750, Enabled = true, AutoReset = true};
+
+    private void AddExtension() {
+        SearchItem.ExtensionsToSkip.Add(_skipExtension);
+        _skipExtension = string.Empty;
+    }
+
+    private void RemoveExtension(MudChip chip) =>
+        SearchItem.ExtensionsToSkip.RemoveAll(n => n == chip.Text);
+
+
+    private void Search(string path) {
+        try {
+            var directoryInfo = new DirectoryInfo(path);
+            if (!directoryInfo.Exists)
+                throw new DirectoryNotFoundException($"Source directory not found: {directoryInfo.FullName}");
+
+            Stats.CheckedDirectories++;
+            foreach (var file in directoryInfo.GetFiles()) {
+                Stats.CheckedFiles++;
+                if (file.CheckFile(SearchItem)) continue;
+                Stats.FoundFiles++;
+                    Files.Add((Stopwatch.ElapsedMilliseconds, file));
+            }
+
+            foreach (var subDir in directoryInfo.GetDirectories()) {
+                if (subDir.Filter(SearchItem)) continue;
+                Stats.CheckedSubDirectories++;
+                Search(subDir.FullName);
+            }
+        }
+        catch (Exception e) {
+            if (e is UnauthorizedAccessException)
+                Stats.NoAccessErrors++;
+            Errors.Add(e);
+        }
+    }
+
+    private void InitSearchThread() {
+        Search(SearchItem.Path);
+
+        Stats.Time = Stopwatch.ElapsedMilliseconds;
+        Stopwatch.Stop();
+        Timer.Stop();
+
+        SetOverlay();
+    }
+
+    private async Task StartSearch() {
+        SetOverlay();
+        await SearchItem.Save();
+        Timer.Elapsed += OnTimer;
+
+        Stopwatch = new Stopwatch();
+        Stats = new Stats();
+        Files = new ConcurrentBag<(long, FileInfo)>();
+        Errors = new List<Exception>();
+        Stopwatch.Reset();
+        Stopwatch.Start();
+        Timer.Start();
+
+        var searchThread = new Thread(InitSearchThread);
+        searchThread.Start();
+    }
+
+
+    private async void OnTimer(object? sender, ElapsedEventArgs elapsedEventArgs) =>
+        await InvokeAsync(StateHasChanged);
+
+
+    private async void HandleChanged(bool change) {
+        _showLastSearches = change;
+        if (!change) return;
+        Saves = await SearchItemExtension.Read();
+        await InvokeAsync(StateHasChanged);
+    }
+
+    private async void SetOverlay() {
+        _isVisible = !_isVisible;
+        await InvokeAsync(StateHasChanged);
+    }
+
+
+}

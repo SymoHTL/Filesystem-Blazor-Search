@@ -1,0 +1,28 @@
+﻿
+Microsoft Visual Studio Solution File, Format Version 12.00
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "SearchStuffWithBlazor", "SearchStuffWithBlazor\SearchStuffWithBlazor.csproj", "{4D2BFCD2-BCD7-4BC8-9F2F-17F5D86A01C3}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Domain", "Domain\Domain.csproj", "{CA2B500A-C436-488C-B2C6-1B59DBABBD05}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Model", "Model\Model.csproj", "{D88D3C5A-629C-4C50-BB0E-5E37EA0D471B}"
+EndProject
+Global
+	GlobalSection(SolutionConfigurationPlatforms) = preSolution
+		Debug|Any CPU = Debug|Any CPU
+		Release|Any CPU = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(ProjectConfigurationPlatforms) = postSolution
+		{4D2BFCD2-BCD7-4BC8-9F2F-17F5D86A01C3}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{4D2BFCD2-BCD7-4BC8-9F2F-17F5D86A01C3}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{4D2BFCD2-BCD7-4BC8-9F2F-17F5D86A01C3}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{4D2BFCD2-BCD7-4BC8-9F2F-17F5D86A01C3}.Release|Any CPU.Build.0 = Release|Any CPU
+		{CA2B500A-C436-488C-B2C6-1B59DBABBD05}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{CA2B500A-C436-488C-B2C6-1B59DBABBD05}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{CA2B500A-C436-488C-B2C6-1B59DBABBD05}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{CA2B500A-C436-488C-B2C6-1B59DBABBD05}.Release|Any CPU.Build.0 = Release|Any CPU
+		{D88D3C5A-629C-4C50-BB0E-5E37EA0D471B}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{D88D3C5A-629C-4C50-BB0E-5E37EA0D471B}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{D88D3C5A-629C-4C50-BB0E-5E37EA0D471B}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{D88D3C5A-629C-4C50-BB0E-5E37EA0D471B}.Release|Any CPU.Build.0 = Release|Any CPU
+	EndGlobalSection
+EndGlobal
