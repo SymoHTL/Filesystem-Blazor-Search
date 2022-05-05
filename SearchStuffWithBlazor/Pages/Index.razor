@@ -4,68 +4,148 @@
 @using System.Diagnostics
 @using System.Timers
 @using System.Collections.Concurrent
+@implements IDisposable
 
 <PageTitle>Search</PageTitle>
 
-<div style="margin: 2.5vh 10vh 1vh;">
-    <div class="position-relative p-3">
-        <form @onsubmit="async () => await StartSearch()">
-            <MudButton FullWidth="true" Variant="Variant.Outlined" Color="Color.Primary" OnClick="() => _showLastSearches = true">Saves</MudButton>
-            <MudTextField T="string" InputMode="InputMode.text" InputType="InputType.Text"
-                          Placeholder="Path (e.g. 'D:/School/Homework')" Label="Path"
-                          @bind-Value="SearchItem.Path" Required="true" Clearable="true"/>
+<div style="margin: 2.5vh 10vh 5vh;">
+<div class="position-relative p-3">
+    <form @onsubmit="async () => await StartSearch()">
+        <div class="d-flex justify-content-start">
+            <MudCheckBox Class="w-25" @bind-Checked="SearchItem.ShouldSave" Label="If the search should be saved?" Color="Color.Tertiary"></MudCheckBox>
+            <MudButton Class="w-75" Variant="Variant.Outlined" Color="Color.Tertiary" OnClick="() => _showLastSearches = true">Saves</MudButton>
+        </div>
 
-            <MudTextField T="string" InputMode="InputMode.text" InputType="InputType.Text"
-                          Placeholder="File-Name (e.g. 'Homework')" Label="File-Name"
-                          @bind-Value="SearchItem.FileName" Clearable="true"/>
-            <MudTextField T="string" InputMode="InputMode.text" InputType="InputType.Text"
-                          Placeholder="File-Extension (e.g. '.txt')" Label="File-Extension"
-                          @bind-Value="SearchItem.FileExtension" Clearable="true"/>
-            <MudCheckBox @bind-Checked="SearchItem.IgnoreDollarFiles" Label="Ignore files starting with: '$'" Color="Color.Primary"/>
-            <MudCheckBox @bind-Checked="SearchItem.IgnoreHidden" Label="Ignore hidden files" Color="Color.Secondary"/>
-            <MudCheckBox @bind-Checked="SearchItem.IgnoreSystemFiles" Label="Ignore system files" Color="Color.Primary"/>
-            <MudCheckBox @bind-Checked="SearchItem.IgnoreTemporary" Label="Ignore temporary files/folders" Color="Color.Secondary"/>
-            <MudCheckBox @bind-Checked="SearchItem.IgnoreWithDotStarting" Label="Ignore files starting with: '.'" Color="Color.Primary"/>
-            <br/>
-            <div>
-                <MudChipSet AllClosable="true" OnClose="RemoveExtension">
-                    @foreach (var toSkip in SearchItem.ExtensionsToSkip) {
-                        <MudChip Text="@toSkip"></MudChip>
-                    }
-                </MudChipSet>
-            </div>
-            <form @onsubmit="AddExtension">
+        <MudTextField T="string" InputMode="InputMode.text" InputType="InputType.Text"
+                      Placeholder="Path (e.g. 'D:/School/Homework')" Label="Path"
+                      @bind-Value="SearchItem.Path" Required="true" Clearable="true"/>
+        <div class="d-flex">
+            <div style="width: 45%">
                 <MudTextField T="string" InputMode="InputMode.text" InputType="InputType.Text"
-                              Placeholder="Extension to ignore (e.g. '.png')" Label="Ignore-Extension"
-                              Immediate="true" Required="true" Clearable="true" @bind-Value="_skipExtension">
-                </MudTextField>
-                <MudButton Color="Color.Primary" Variant="Variant.Outlined" Class="my-3" ButtonType="ButtonType.Submit">Add</MudButton>
-            </form>
+                              Placeholder="File-Name (e.g. 'Homework')" Label="File-Name"
+                              @bind-Value="SearchItem.FileName" Clearable="true"/>
+            </div>
+            <MudSpacer/>
+            <div style="width: 45%;">
+                <MudTextField T="string" InputMode="InputMode.text" InputType="InputType.Text"
+                              Placeholder="File-Extension (e.g. '.txt')" Label="File-Extension"
+                              @bind-Value="SearchItem.FileExtension" Clearable="true"/>
+            </div>
+        </div>
+        <MudExpansionPanels Class="mt-2">
+            <MudExpansionPanel Text="Filters">
+                <div class="d-flex">
+                        <div style="width: 15%">
+                            <MudNumericField T="double" ValueChanged="ConvertMinSize" Immediate="true" Label="@($"Min-Size in - {_eSize}")"/>
+                        </div>
 
-            <MudButton Color="Color.Primary" Variant="Variant.Outlined" Class="my-3" ButtonType="ButtonType.Submit">Search</MudButton>
-            <MudButton Color="Color.Error" Variant="Variant.Outlined" Class="my-3" ButtonType="ButtonType.Reset">Clear</MudButton>
-        </form>
-        <MudOverlay @bind-Visible="_isVisible" Absolute="true" DarkBackground="true">
-            <MudProgressCircular Indeterminate="true" Size="Size.Large" Color="Color.Info"></MudProgressCircular>
-        </MudOverlay>
-    </div>
-    <MudTabs Centered="true" Rounded="true">
-        <MudTabPanel Text="File-Paths">
-            <MudPaper Class="p-3 output">
-                @if (Files.Count >= 0) {
-                    <MudTable Items="@Files" FixedHeader="true" Virtualize="true" Hover="true" Loading="@_isVisible" Dense="true" LoadingProgressColor="Color.Info">
+                        <div class="mx-4" style="width: 15%">
+                            <MudNumericField T="double" ValueChanged="ConvertMaxSize" Immediate="true" Label="@($"Max-Size in - {_eSize}")"/>
+                        </div>
+                        <div style="width: 7.5%">
+                            <MudSelect @bind-Value="_eSize" AnchorOrigin="Origin.BottomCenter">
+                                @foreach (ESize eSize in Enum.GetValues(typeof(ESize))) {
+                                    <MudSelectItem Value="eSize"/>
+                                }
+                            </MudSelect>
+                        </div>
+                </div>
+
+                <MudCheckBox @bind-Checked="SearchItem.CaseSensitive" Label="Is File-Name case-sensitive?" Color="Color.Secondary"></MudCheckBox>
+                <MudCheckBox @bind-Checked="SearchItem.StartsWithOnly" Label="Only search files starting with File-Name?" Color="Color.Primary"></MudCheckBox>
+                <MudCheckBox @bind-Checked="SearchItem.IgnoreHidden" Label="Ignore hidden files/folders" Color="Color.Secondary"/>
+                <MudCheckBox @bind-Checked="SearchItem.IgnoreSystemFiles" Label="Ignore system files/folders" Color="Color.Primary"/>
+                <MudCheckBox @bind-Checked="SearchItem.IgnoreTemporary" Label="Ignore temporary files/folders" Color="Color.Secondary"/>
+                <br/>
+                <MudCheckBox @bind-Checked="SearchItem.IgnoreDollarFiles" Label="Ignore files/folders starting with: '$'" Color="Color.Primary"/>
+                <MudCheckBox @bind-Checked="SearchItem.IgnoreWithDotStarting" Label="Ignore files/folders starting with: '.'" Color="Color.Secondary"/>
+                <MudCheckBox @bind-Checked="SearchItem.IgnoreWithUnderscoreStarting" Label="Ignore files/folders starting with: '_'" Color="Color.Primary"/>
+                <br/>
+                <div>
+                    <MudChipSet AllClosable="true" OnClose="RemoveExtension">
+                        @foreach (var toSkip in SearchItem.ExtensionsToSkip) {
+                            <MudChip Text="@toSkip"></MudChip>
+                        }
+                    </MudChipSet>
+                </div>
+                <form @onsubmit="AddExtension">
+                    <MudTextField T="string" InputMode="InputMode.text" InputType="InputType.Text"
+                                  Placeholder="Extension to ignore (e.g. '.png')" Label="Ignore-Extension"
+                                  Immediate="true" Required="true" Clearable="true" @bind-Value="_skipExtension">
+                    </MudTextField>
+                    <MudButton Color="Color.Primary" Variant="Variant.Outlined" Class="my-3" ButtonType="ButtonType.Submit">Add</MudButton>
+                </form>
+            </MudExpansionPanel>
+        </MudExpansionPanels>
+
+        <MudButton Color="Color.Primary" Variant="Variant.Outlined" Class="my-3" ButtonType="ButtonType.Submit">Search</MudButton>
+        <MudButton Color="Color.Error" Variant="Variant.Outlined" Class="my-3" ButtonType="ButtonType.Reset">Clear</MudButton>
+    </form>
+    <MudOverlay @bind-Visible="_isLoading" Absolute="true" DarkBackground="true">
+        <MudButton Size="Size.Large" Color="Color.Error" Variant="Variant.Outlined" OnClick="() => _isRunning = false">Stop</MudButton>
+    </MudOverlay>
+</div>
+<MudTabs Centered="true" Rounded="true">
+    <MudTabPanel Text="Files">
+        <MudPaper Class="px-3 output">
+            <table class="table">
+                <thead>
+                <tr style="position: sticky; top: 0; background-color: var(--mud-palette-background)">
+                    <th>
+                        <MudButton Disabled="_isLoading" OnClick="OrderByTime">
+                            <MudText Typo="Typo.subtitle1" Color="Color.Tertiary">Time</MudText>
+                        </MudButton>
+                    </th>
+                    <th>
+                        <MudButton Disabled="_isLoading" OnClick="OrderBySize">
+                            <MudText Typo="Typo.subtitle1" Color="Color.Primary">Size</MudText>
+                        </MudButton>
+                    </th>
+                    <th>
+                        <MudButton Disabled="true">
+                            <MudText Typo="Typo.subtitle1" Color="Color.Warning">File-Name</MudText>
+                        </MudButton>
+                    </th>
+                    <th>
+                        <MudButton Disabled="true">
+                            <MudText Typo="Typo.subtitle1" Color="Color.Info">Path</MudText>
+                        </MudButton>
+                    </th>
+                </tr>
+                </thead>
+                <tbody>
+                <Virtualize Items="Files.ToArray()">
+                    <tr>
+                        <td>
+                            <MudText Typo="Typo.body1" Color="Color.Tertiary">@context.Item1 ms</MudText>
+                        </td>
+                        <td>
+                            <MudText Typo="Typo.body1" Color="Color.Primary">@context.Item2.Length.ConvertToReadable()</MudText>
+                        </td>
+                        <td>
+                            <MudText Typo="Typo.body1" Color="Color.Warning">@context.Item2.Name</MudText>
+                        </td>
+                        <td>
+                            <MudText Typo="Typo.body1" Color="Color.Info">@context.Item2.FullName</MudText>
+                        </td>
+                    </tr>
+                </Virtualize>
+                </tbody>
+            </table>
+            @*@if (Files.Count >= 0) {
+                    <MudTable Items="@Files.ToArray()" FixedHeader="true" Virtualize="true" Hover="true" Loading="@_isLoading" Dense="true" LoadingProgressColor="Color.Info">
                         <ColGroup>
-                                <col style="width: 10%;" />
-                                <col style="width: 10%;" />
-                                <col style="width: 80%;" />
-                            </ColGroup>
+                            <col style="width: 10%;"/>
+                            <col style="width: 10%;"/>
+                            <col style="width: 80%;"/>
+                        </ColGroup>
                         <HeaderContent>
                             <MudTh>
-                                <MudTableSortLabel InitialDirection="SortDirection.Ascending"
-                                                   SortBy="new Func<(long, List<FileInfo>), object>(f => f.Item1)">Time</MudTableSortLabel></MudTh>
+                                    Time
+                            </MudTh>
                             <MudTh>
-                                <MudTableSortLabel SortDirection="SortDirection.Descending"
-                                                   SortBy="new Func<(long, List<FileInfo>), object>(f => f.Item2.Count)">Size</MudTableSortLabel></MudTh>
+                                    Size
+                            </MudTh>
                             <MudTh>Path</MudTh>
                         </HeaderContent>
                         <RowTemplate>
@@ -74,40 +154,98 @@
                             <MudTd DataLabel="Path">@context.Item2.FullName</MudTd>
                         </RowTemplate>
                     </MudTable>
-                }
-                @*<Virtualize Items="@(Files)" Context="file">
+                }*@
+            @*<Virtualize Items="@(TempFiles)" Context="file">
                     <MudText Typo="Typo.body1">@($"{file.Item1}ms - {file.Item2.Length.ConvertToReadable()} - {file.Item2.FullName}")</MudText>
                 </Virtualize>*@
-            </MudPaper>
-        </MudTabPanel>
-        <MudTabPanel Text="Stats">
-            <MudPaper Class="p-3 output">
-                <MudText Typo="Typo.body1">Time: @Stats.Time ms</MudText>
-                @if (!_isVisible) {
-                    <MudText Typo="Typo.body1">Found Files Size: @Files.Select(f => f.Item2.Length).Sum().ConvertToReadable()</MudText>
-                }
-                <MudText Typo="Typo.body1">Found Files: @Stats.FoundFiles</MudText>
-                <MudText Typo="Typo.body1">Checked Files: @Stats.CheckedFiles</MudText>
-                <MudText Typo="Typo.body1">Filtered Files: @(Stats.CheckedFiles - Stats.FoundFiles)</MudText>
-                <MudText Typo="Typo.body1">Checked Directories: @Stats.CheckedDirectories</MudText>
-                <MudText Typo="Typo.body1">Checked Sub-Directories: @Stats.CheckedSubDirectories</MudText>
-                <MudText Typo="Typo.body1">No Access: @Stats.NoAccessErrors</MudText>
-            </MudPaper>
-        </MudTabPanel>
-        <MudTabPanel Text="Errors">
-            <MudPaper Class="p-3 output">
-                <MudExpansionPanels>
-                    <Virtualize Items="@(Errors)" Context="error">
-                        <MudText Typo="Typo.body1">@error.Message</MudText>
-                    </Virtualize>
-                </MudExpansionPanels>
-            </MudPaper>
-        </MudTabPanel>
-    </MudTabs>
+        </MudPaper>
+    </MudTabPanel>
+    <MudTabPanel Text="Stats">
+        <MudPaper Class="px-3 output">
+            <table>
+                <tbody class="stats-table">
+                <tr>
+                    <td>
+                        <MudText Typo="Typo.body1">Time:</MudText>
+                    </td>
+                    <td>
+                        <MudText Typo="Typo.body1">@Stopwatch.ElapsedMilliseconds.ToString("#,##0") ms</MudText>
+                    </td>
+                </tr>
+                <tr>
+                    <td>
+                        <MudText Typo="Typo.body1">Found Files Size:</MudText>
+                    </td>
+                    <td>
+                        <MudText Typo="Typo.body1">@Files.Select(f => f.Item2.Length).Sum().ConvertToReadable()</MudText>
+                    </td>
+                </tr>
+                <tr>
+                    <td>
+                        <MudText Typo="Typo.body1">Found Files:</MudText>
+                    </td>
+                    <td>
+                        <MudText Typo="Typo.body1">@Stats.FoundFiles.ToString("#,##0")</MudText>
+                    </td>
+                </tr>
+                <tr>
+                    <td>
+                        <MudText Typo="Typo.body1">Checked Files:</MudText>
+                    </td>
+                    <td>
+                        <MudText Typo="Typo.body1">@Stats.CheckedFiles.ToString("#,##0")</MudText>
+                    </td>
+                </tr>
+                <tr>
+                    <td>
+                        <MudText Typo="Typo.body1">Filtered Files:</MudText>
+                    </td>
+                    <td>
+                        <MudText Typo="Typo.body1">@((Stats.CheckedFiles - Stats.FoundFiles).ToString("#,##0"))</MudText>
+                    </td>
+                </tr>
+                <tr>
+                    <td>
+                        <MudText Typo="Typo.body1">Checked Directories:</MudText>
+                    </td>
+                    <td>
+                        <MudText Typo="Typo.body1">@Stats.CheckedDirectories.ToString("#,##0")</MudText>
+                    </td>
+                </tr>
+                <tr>
+                    <td>
+                        <MudText Typo="Typo.body1">Checked Sub-Directories:</MudText>
+                    </td>
+                    <td>
+                        <MudText Typo="Typo.body1">@Stats.CheckedSubDirectories.ToString("#,##0")</MudText>
+                    </td>
+                </tr>
+                <tr>
+                    <td>
+                        <MudText Typo="Typo.body1">No Access:</MudText>
+                    </td>
+                    <td>
+                        <MudText Typo="Typo.body1">@Stats.NoAccessErrors.ToString("#,##0")</MudText>
+                    </td>
+                </tr>
+                </tbody>
+            </table>
+        </MudPaper>
+    </MudTabPanel>
+    <MudTabPanel Text="Errors">
+        <MudPaper Class="px-3 output">
+            <MudExpansionPanels>
+                <Virtualize Items="@(Errors)" Context="error">
+                    <MudText Typo="Typo.body1">@error.Message</MudText>
+                </Virtualize>
+            </MudExpansionPanels>
+        </MudPaper>
+    </MudTabPanel>
+</MudTabs>
 </div>
 
 
-<MudDrawer Open="_showLastSearches" Anchor="Anchor.Right" Variant="DrawerVariant.Temporary" Width="500px" OpenChanged="HandleChanged">
+<MudDrawer Open="_showLastSearches" Anchor="Anchor.Right" Variant="DrawerVariant.Temporary" Width="500px" OpenChanged="DrawerVisibleChanged">
     <MudDrawerHeader Class="align-center">
         <MudText Typo="Typo.body1">
             <b>Last Searches</b>
@@ -146,14 +284,22 @@
         max-height: 60vh;
         overflow-y: auto;
     }
+    .stats-table tr td:nth-child(2n){
+        padding-left:1rem!important;
+    }
 </style>
 
-@code {
+@code{
+    private bool _isRunning;
 
-    private bool _isVisible;
+    private bool _isLoading;
     private bool _showLastSearches;
 
     private string _skipExtension = string.Empty;
+
+    private ESize _eSize = ESize.Mb;
+    private SortDirection _sortDirectionTime = SortDirection.Ascending;
+    private SortDirection _sortDirectionSize = SortDirection.Ascending;
 
     private SearchItem SearchItem { get; set; } = new();
 
@@ -164,19 +310,34 @@
     private List<Exception> Errors { get; set; } = new();
 
     private Stopwatch Stopwatch { get; set; } = new();
-    private Timer Timer { get; } = new() {Interval = 750, Enabled = true, AutoReset = true};
+    private Timer Timer { get; } = new() {Interval = 500, Enabled = true, AutoReset = true};
 
-    private void AddExtension() {
-        SearchItem.ExtensionsToSkip.Add(_skipExtension);
-        _skipExtension = string.Empty;
+    private async Task StartSearch() {
+        SetLoading();
+        if (SearchItem.ShouldSave)
+            await SearchItem.Save();
+
+        Timer.Elapsed += OnTimer;
+
+        Clear();
+
+        Stopwatch.Start();
+        Timer.Start();
+
+        _isRunning = true;
+        var searchThread = new Thread(InitSearchThread);
+        searchThread.Start();
     }
 
-    private void RemoveExtension(MudChip chip) =>
-        SearchItem.ExtensionsToSkip.RemoveAll(n => n == chip.Text);
+    private void InitSearchThread() {
+        Search(SearchItem.Path);
 
+        StopSearch();
+    }
 
     private void Search(string path) {
         try {
+            if (!_isRunning) return;
             var directoryInfo = new DirectoryInfo(path);
             if (!directoryInfo.Exists)
                 throw new DirectoryNotFoundException($"Source directory not found: {directoryInfo.FullName}");
@@ -186,7 +347,7 @@
                 Stats.CheckedFiles++;
                 if (file.CheckFile(SearchItem)) continue;
                 Stats.FoundFiles++;
-                    Files.Add((Stopwatch.ElapsedMilliseconds, file));
+                Files.Add((Stopwatch.ElapsedMilliseconds, file));
             }
 
             foreach (var subDir in directoryInfo.GetDirectories()) {
@@ -202,49 +363,102 @@
         }
     }
 
-    private void InitSearchThread() {
-        Search(SearchItem.Path);
-
-        Stats.Time = Stopwatch.ElapsedMilliseconds;
-        Stopwatch.Stop();
-        Timer.Stop();
-
-        SetOverlay();
-    }
-
-    private async Task StartSearch() {
-        SetOverlay();
-        await SearchItem.Save();
-        Timer.Elapsed += OnTimer;
-
+    private void Clear() {
         Stopwatch = new Stopwatch();
         Stats = new Stats();
-        Files = new ConcurrentBag<(long, FileInfo)>();
+        Files.Clear();
         Errors = new List<Exception>();
         Stopwatch.Reset();
-        Stopwatch.Start();
-        Timer.Start();
-
-        var searchThread = new Thread(InitSearchThread);
-        searchThread.Start();
     }
 
+    private void StopSearch() {
+        Stopwatch.Stop();
+        Timer.Stop();
+        SetLoading();
+    }
+
+    private void OrderBySize() {
+        _sortDirectionSize = _sortDirectionSize == SortDirection.Ascending ? SortDirection.Descending : SortDirection.Ascending;
+        Files = new ConcurrentBag<(long, FileInfo)>(Files.OrderByDirection(_sortDirectionSize, f => f.Item2.Length));
+    }
+
+    private void OrderByTime() {
+        _sortDirectionTime = _sortDirectionTime == SortDirection.Ascending ? SortDirection.Descending : SortDirection.Ascending;
+        Files = new ConcurrentBag<(long, FileInfo)>(Files.OrderByDirection(_sortDirectionTime, f => f.Item1));
+    }
+
+    private void AddExtension() {
+        SearchItem.ExtensionsToSkip.Add(_skipExtension);
+        _skipExtension = string.Empty;
+    }
+
+    private void ConvertMinSize(double min) {
+        switch (_eSize) {
+            case ESize.B:
+                SearchItem.MinSize = (long) min;
+                return;
+            case ESize.Kb:
+                SearchItem.MinSize = (long) (min * 1024);
+                return;
+            case ESize.Mb:
+                SearchItem.MinSize = (long) (min * 1024 * 1024);
+                return;
+            case ESize.Gb:
+                SearchItem.MinSize = (long) (min * 1024 * 1024 * 1024);
+                return;
+            case ESize.Tb:
+                SearchItem.MinSize = (long) (min * 1024 * 1024 * 1024 * 1024);
+                return;
+            default:
+                throw new ArgumentOutOfRangeException();
+        }
+    }
+
+    private void ConvertMaxSize(double max) {
+        switch (_eSize) {
+            case ESize.B:
+                SearchItem.MaxSize = (long) max;
+                return;
+            case ESize.Kb:
+                SearchItem.MaxSize = (long) (max * 1024);
+                return;
+            case ESize.Mb:
+                SearchItem.MaxSize = (long) (max * 1024 * 1024);
+                return;
+            case ESize.Gb:
+                SearchItem.MaxSize = (long) (max * 1024 * 1024 * 1024);
+                return;
+            case ESize.Tb:
+                SearchItem.MaxSize = (long) (max * 1024 * 1024 * 1024 * 1024);
+                return;
+            default:
+                throw new ArgumentOutOfRangeException();
+        }
+    }
+
+    private void RemoveExtension(MudChip chip) =>
+        SearchItem.ExtensionsToSkip.RemoveAll(n => n == chip.Text);
 
     private async void OnTimer(object? sender, ElapsedEventArgs elapsedEventArgs) =>
         await InvokeAsync(StateHasChanged);
 
 
-    private async void HandleChanged(bool change) {
+    private async void DrawerVisibleChanged(bool change) {
         _showLastSearches = change;
         if (!change) return;
         Saves = await SearchItemExtension.Read();
         await InvokeAsync(StateHasChanged);
     }
 
-    private async void SetOverlay() {
-        _isVisible = !_isVisible;
+    private async void SetLoading() {
+        _isLoading = !_isLoading;
         await InvokeAsync(StateHasChanged);
     }
 
+    public void Dispose() {
+        Timer.Dispose();
+        Stopwatch.Stop();
+        _isRunning = false;
+    }
 
 }

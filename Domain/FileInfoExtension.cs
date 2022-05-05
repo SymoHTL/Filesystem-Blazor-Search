@@ -28,6 +28,11 @@ public static class FileInfoExtension {
         if (searchItem.IgnoreWithDotStarting)
             if (fileInfo.Name.StartsWith("."))
                 return true;
+        if (searchItem.IgnoreWithUnderscoreStarting)
+            if (fileInfo.Name.StartsWith("_"))
+                return true;
+        if (fileInfo.Length < searchItem.MinSize) return true;
+        if (fileInfo.Length > searchItem.MaxSize && searchItem.MaxSize is not 0) return true;
         return false;
     }
 }
